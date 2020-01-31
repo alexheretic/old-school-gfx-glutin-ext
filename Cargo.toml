@@ -1,0 +1,19 @@
+[package]
+name = "old_school_gfx_glutin_ext"
+# Version should be inline with glutin target version
+version = "0.22.0"
+authors = ["Alex Butler <alexheretic@gmail.com>"]
+edition = "2018"
+description = "Extensions for glutin to initialize & update old school gfx"
+repository = "https://github.com/alexheretic/old_school_gfx_glutin_ext"
+keywords = ["gamedev", "graphics", "gfx", "glutin"]
+license = "Apache-2.0"
+readme="README.md"
+
+[dependencies]
+glutin = "0.22"
+gfx_core = "0.9.2"
+gfx_device_gl = "0.16.2"
+
+[dev-dependencies]
+gfx = "0.18"
