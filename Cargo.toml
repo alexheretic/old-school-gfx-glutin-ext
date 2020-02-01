@@ -1,7 +1,7 @@
 [package]
 name = "old_school_gfx_glutin_ext"
 # Version should be inline with glutin target version
-version = "0.22.0"
+version = "0.22.1"
 authors = ["Alex Butler <alexheretic@gmail.com>"]
 edition = "2018"
 description = "Extensions for glutin to initialize & update old school gfx"
