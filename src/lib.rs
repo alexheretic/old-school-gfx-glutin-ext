@@ -44,16 +44,22 @@ type GfxInitTuple<Color, Depth> = (
 pub trait ContextBuilderExt {
     /// Calls `with_pixel_format` & `with_srgb` according to the color format.
     fn with_gfx_color<Color: RenderFormat>(self) -> Self;
+    /// Calls `with_pixel_format` & `with_srgb` according to the color format.
+    fn with_gfx_color_raw(self, color_format: Format) -> Self;
     /// Calls `with_depth_buffer` & `with_stencil_buffer` according to the depth format.
     fn with_gfx_depth<Depth: DepthFormat>(self) -> Self;
+    /// Calls `with_depth_buffer` & `with_stencil_buffer` according to the depth format.
+    fn with_gfx_depth_raw(self, ds_format: Format) -> Self;
     /// Calls `with_gfx_color` & `with_gfx_depth`.
     fn with_gfx_color_depth<Color: RenderFormat, Depth: DepthFormat>(self) -> Self;
 }
 
 impl ContextBuilderExt for glutin::ContextBuilder<'_, NotCurrent> {
     fn with_gfx_color<Color: RenderFormat>(self) -> Self {
-        let Format(surface, channel) = Color::get_format();
+        self.with_gfx_color_raw(Color::get_format())
+    }
 
+    fn with_gfx_color_raw(self, Format(surface, channel): Format) -> Self {
         let color_total_bits = surface.get_total_bits();
         let alpha_bits = surface.get_alpha_stencil_bits();
 
@@ -62,8 +68,10 @@ impl ContextBuilderExt for glutin::ContextBuilder<'_, NotCurrent> {
     }
 
     fn with_gfx_depth<Depth: DepthFormat>(self) -> Self {
-        let surface = Depth::get_format().0;
+        self.with_gfx_depth_raw(Depth::get_format())
+    }
 
+    fn with_gfx_depth_raw(self, Format(surface, _): Format) -> Self {
         let depth_total_bits = surface.get_total_bits();
         let stencil_bits = surface.get_alpha_stencil_bits();
 
