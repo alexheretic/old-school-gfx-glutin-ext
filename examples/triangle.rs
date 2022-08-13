@@ -11,7 +11,7 @@ use glutin::{
     window::WindowBuilder,
 };
 use old_school_gfx_glutin_ext::*;
-use std::{env, error::Error};
+use std::error::Error;
 
 type ColorFormat = gfx::format::Srgba8;
 type DepthFormat = gfx::format::DepthStencil;
@@ -27,6 +27,7 @@ gfx_defines! {
         out: gfx::RenderTarget<ColorFormat> = "target",
     }
 }
+impl Eq for pipe::Meta {}
 
 const TRIANGLE: [Vertex; 3] = [
     Vertex {
@@ -46,10 +47,6 @@ const TRIANGLE: [Vertex; 3] = [
 const CLEAR_COLOR: [f32; 4] = [0.1, 0.11, 0.12, 1.0];
 
 pub fn main() -> Result<(), Box<dyn Error>> {
-    if cfg!(target_os = "linux") && env::var("WINIT_UNIX_BACKEND").is_err() {
-        env::set_var("WINIT_UNIX_BACKEND", "x11");
-    }
-
     let event_loop = EventLoop::new();
     let window_config = WindowBuilder::new()
         .with_title("Triangle".to_string())
