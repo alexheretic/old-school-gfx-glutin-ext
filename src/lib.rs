@@ -3,27 +3,34 @@
 //!
 //! # Example
 //! ```no_run
-//! use old_school_gfx_glutin_ext::*;
-//!
 //! type ColorFormat = gfx::format::Srgba8;
 //! type DepthFormat = gfx::format::DepthStencil;
 //!
-//! # fn main() -> Result<(), glutin::CreationError> {
-//! # let event_loop = glutin::event_loop::EventLoop::new();
-//! # let window_config = glutin::window::WindowBuilder::new();
-//! // Initialize
-//! let (window_ctx, mut device, mut factory, mut main_color, mut main_depth) =
-//!     glutin::ContextBuilder::new()
-//!         .with_gfx_color_depth::<ColorFormat, DepthFormat>()
-//!         .build_windowed(window_config, &event_loop)?
-//!         .init_gfx::<ColorFormat, DepthFormat>();
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! # let event_loop = winit::event_loop::EventLoop::new();
+//! // Initialise winit window, glutin context & gfx views
+//! let old_school_gfx_glutin_ext::Init {
+//!     window,
+//!     gl_config,
+//!     gl_surface,
+//!     gl_context,
+//!     mut device,
+//!     mut factory,
+//!     mut color_view,
+//!     mut depth_view,
+//!     ..
+//! } = old_school_gfx_glutin_ext::window_builder(winit::window::WindowBuilder::new())
+//!     .build::<ColorFormat, DepthFormat>(&event_loop)?;
 //!
-//! # let new_size = glutin::dpi::PhysicalSize::new(1, 1);
-//! // Update, ie after a resize
-//! window_ctx.update_gfx(&mut main_color, &mut main_depth);
+//! # let new_size = winit::dpi::PhysicalSize::new(1, 1);
+//! // Update gfx views, e.g. after a window resize
+//! old_school_gfx_glutin_ext::resize_views(new_size, &mut color_view, &mut depth_view);
 //! # Ok(()) }
 //! ```
 
+mod glutin_winit2;
+
+use crate::glutin_winit2::GlWindow;
 use gfx_core::{
     format::{ChannelType, DepthFormat, Format, RenderFormat},
     handle::{DepthStencilView, RawDepthStencilView, RawRenderTargetView, RenderTargetView},
@@ -31,170 +38,229 @@ use gfx_core::{
     texture,
 };
 use gfx_device_gl::Resources as R;
-use glutin::{NotCurrent, PossiblyCurrent};
+use glutin::{
+    config::ColorBufferType,
+    context::ContextAttributesBuilder,
+    display::GetGlDisplay,
+    prelude::{GlConfig, GlDisplay, NotCurrentGlContextSurfaceAccessor},
+    surface::{SurfaceAttributesBuilder, WindowSurface},
+};
+use raw_window_handle::HasRawWindowHandle;
+use std::{error::Error, ffi::CString};
 
-type GfxInitTuple<Color, Depth> = (
-    glutin::WindowedContext<PossiblyCurrent>,
-    gfx_device_gl::Device,
-    gfx_device_gl::Factory,
-    RenderTargetView<R, Color>,
-    DepthStencilView<R, Depth>,
-);
-
-pub trait ContextBuilderExt {
-    /// Calls `with_pixel_format` & `with_srgb` according to the color format.
-    fn with_gfx_color<Color: RenderFormat>(self) -> Self;
-    /// Calls `with_pixel_format` & `with_srgb` according to the color format.
-    fn with_gfx_color_raw(self, color_format: Format) -> Self;
-    /// Calls `with_depth_buffer` & `with_stencil_buffer` according to the depth format.
-    fn with_gfx_depth<Depth: DepthFormat>(self) -> Self;
-    /// Calls `with_depth_buffer` & `with_stencil_buffer` according to the depth format.
-    fn with_gfx_depth_raw(self, ds_format: Format) -> Self;
-    /// Calls `with_gfx_color` & `with_gfx_depth`.
-    fn with_gfx_color_depth<Color: RenderFormat, Depth: DepthFormat>(self) -> Self;
-}
-
-impl ContextBuilderExt for glutin::ContextBuilder<'_, NotCurrent> {
-    fn with_gfx_color<Color: RenderFormat>(self) -> Self {
-        self.with_gfx_color_raw(Color::get_format())
-    }
-
-    fn with_gfx_color_raw(self, Format(surface, channel): Format) -> Self {
-        let color_total_bits = surface.get_total_bits();
-        let alpha_bits = surface.get_alpha_stencil_bits();
-
-        self.with_pixel_format(color_total_bits - alpha_bits, alpha_bits)
-            .with_srgb(channel == ChannelType::Srgb)
-    }
-
-    fn with_gfx_depth<Depth: DepthFormat>(self) -> Self {
-        self.with_gfx_depth_raw(Depth::get_format())
-    }
-
-    fn with_gfx_depth_raw(self, Format(surface, _): Format) -> Self {
-        let depth_total_bits = surface.get_total_bits();
-        let stencil_bits = surface.get_alpha_stencil_bits();
-
-        self.with_depth_buffer(depth_total_bits - stencil_bits)
-            .with_stencil_buffer(stencil_bits)
-    }
-
-    fn with_gfx_color_depth<Color: RenderFormat, Depth: DepthFormat>(self) -> Self {
-        self.with_gfx_color::<Color>().with_gfx_depth::<Depth>()
+/// Returns a builder for initialising a winit window, glutin context & gfx views.
+pub fn window_builder(winit: winit::window::WindowBuilder) -> Builder {
+    Builder {
+        winit,
+        surface_attrs: <_>::default(),
+        ctx_attrs: <_>::default(),
     }
 }
 
-pub trait WindowInitExt {
-    /// Make the context current, creates the gfx device, factory and views.
-    fn init_gfx<Color: RenderFormat, Depth: DepthFormat>(self) -> GfxInitTuple<Color, Depth>;
-    /// Make the context current, creates the gfx device, factory and views.
-    fn init_gfx_raw(
+/// Builder for initialising a winit window, glutin context & gfx views.
+#[derive(Debug, Clone)]
+pub struct Builder {
+    winit: winit::window::WindowBuilder,
+    surface_attrs: Option<SurfaceAttributesBuilder<WindowSurface>>,
+    ctx_attrs: ContextAttributesBuilder,
+}
+
+impl Builder {
+    /// Configure surface attributes.
+    ///
+    /// If not called glutin default settings are used.
+    pub fn surface_attributes(
+        mut self,
+        surface_attrs: SurfaceAttributesBuilder<WindowSurface>,
+    ) -> Self {
+        self.surface_attrs = Some(surface_attrs);
+        self
+    }
+
+    /// Configure context attributes.
+    ///
+    /// If not called glutin default settings are used.
+    pub fn context_attributes(mut self, ctx_attrs: ContextAttributesBuilder) -> Self {
+        self.ctx_attrs = ctx_attrs;
+        self
+    }
+
+    /// Initialise a winit window, glutin context & gfx views.
+    pub fn build<Color: RenderFormat, Depth: DepthFormat>(
         self,
-        color_format: Format,
-        ds_format: Format,
-    ) -> (
-        glutin::WindowedContext<PossiblyCurrent>,
-        gfx_device_gl::Device,
-        gfx_device_gl::Factory,
-        RawRenderTargetView<R>,
-        RawDepthStencilView<R>,
-    );
-}
+        events: &winit::event_loop::EventLoop<()>,
+    ) -> Result<Init<Color, Depth>, Box<dyn Error>> {
+        self.build_raw(events, Color::get_format(), Depth::get_format())
+            .map(|i| i.into_typed())
+    }
 
-impl WindowInitExt for glutin::WindowedContext<NotCurrent> {
-    fn init_gfx<Color: RenderFormat, Depth: DepthFormat>(self) -> GfxInitTuple<Color, Depth> {
-        let (window, device, factory, color_view, ds_view) =
-            self.init_gfx_raw(Color::get_format(), Depth::get_format());
-        (
+    /// Initialise a winit window, glutin context & gfx views.
+    pub fn build_raw(
+        self,
+        events: &winit::event_loop::EventLoop<()>,
+        Format(color_surface, color_channel): Format,
+        depth_format: Format,
+    ) -> Result<RawInit, Box<dyn Error>> {
+        let color_total_bits = color_surface.get_total_bits();
+        let alpha_bits = color_surface.get_alpha_stencil_bits();
+        let depth_total_bits = depth_format.0.get_total_bits();
+        let stencil_bits = depth_format.0.get_alpha_stencil_bits();
+        let srgb = color_channel == ChannelType::Srgb;
+        let surface_attrs = self
+            .surface_attrs
+            .unwrap_or_else(|| SurfaceAttributesBuilder::new().with_srgb(srgb.then_some(true)));
+
+        let (window, gl_config) = glutin_winit::DisplayBuilder::new()
+            .with_window_builder(Some(self.winit))
+            .build(events, <_>::default(), |configs| {
+                configs
+                    .filter(|c| {
+                        let color_bits = match c.color_buffer_type() {
+                            None => 0,
+                            Some(ColorBufferType::Luminance(s)) => s,
+                            Some(ColorBufferType::Rgb {
+                                r_size,
+                                g_size,
+                                b_size,
+                            }) => r_size + g_size + b_size,
+                        };
+
+                        (!srgb || c.srgb_capable())
+                            && color_bits == color_total_bits - alpha_bits
+                            && c.alpha_size() == alpha_bits
+                            && c.depth_size() == depth_total_bits - stencil_bits
+                            && c.stencil_size() == stencil_bits
+                    })
+                    .max_by_key(|c| c.num_samples())
+                    .unwrap()
+            })?;
+        let window = window.unwrap(); // set in display builder
+        let raw_window_handle = window.raw_window_handle();
+        let gl_display = gl_config.display();
+
+        let (gl_surface, gl_context) = {
+            let ctx_attrs = self.ctx_attrs.build(Some(raw_window_handle));
+            let surface_attrs = window.build_surface_attributes(surface_attrs);
+            let surface = unsafe { gl_display.create_window_surface(&gl_config, &surface_attrs)? };
+            let context = unsafe { gl_display.create_context(&gl_config, &ctx_attrs)? }
+                .make_current(&surface)?;
+            (surface, context)
+        };
+
+        let (device, factory) =
+            gfx_device_gl::create(|s| gl_display.get_proc_address(&CString::new(s).unwrap()) as _);
+
+        let window_size = window.inner_size();
+        let tex_dimensions = (
+            window_size.width as _,
+            window_size.height as _,
+            1,
+            gl_config.num_samples().into(),
+        );
+        let (color_view, depth_view) =
+            gfx_device_gl::create_main_targets_raw(tex_dimensions, color_surface, depth_format.0);
+
+        Ok(RawInit {
             window,
+            gl_config,
+            gl_surface,
+            gl_context,
             device,
             factory,
-            Typed::new(color_view),
-            Typed::new(ds_view),
-        )
-    }
-
-    fn init_gfx_raw(
-        self,
-        color_format: Format,
-        ds_format: Format,
-    ) -> (
-        glutin::WindowedContext<PossiblyCurrent>,
-        gfx_device_gl::Device,
-        gfx_device_gl::Factory,
-        RawRenderTargetView<R>,
-        RawDepthStencilView<R>,
-    ) {
-        let window = unsafe { self.make_current().unwrap() };
-        let (device, factory) =
-            gfx_device_gl::create(|s| window.get_proc_address(s) as *const std::os::raw::c_void);
-
-        let dim = get_window_dimensions(&window);
-        let (color_view, ds_view) =
-            gfx_device_gl::create_main_targets_raw(dim, color_format.0, ds_format.0);
-
-        (window, device, factory, color_view, ds_view)
+            color_view,
+            depth_view,
+        })
     }
 }
 
-pub trait WindowUpdateExt {
-    /// Recreates the views if the dimensions have changed.
-    fn update_gfx<Color: RenderFormat, Depth: DepthFormat>(
-        &self,
-        color_view: &mut RenderTargetView<R, Color>,
-        ds_view: &mut DepthStencilView<R, Depth>,
+/// Initialised winit, glutin & gfx state.
+#[non_exhaustive]
+pub struct InitState<ColorView, DepthView> {
+    // winit
+    pub window: winit::window::Window,
+    // glutin
+    pub gl_config: glutin::config::Config,
+    pub gl_surface: glutin::surface::Surface<WindowSurface>,
+    pub gl_context: glutin::context::PossiblyCurrentContext,
+    // gfx
+    pub device: gfx_device_gl::Device,
+    pub factory: gfx_device_gl::Factory,
+    pub color_view: ColorView,
+    pub depth_view: DepthView,
+}
+
+/// "Raw" initialised winit, glutin & gfx state.
+pub type RawInit = InitState<RawRenderTargetView<R>, RawDepthStencilView<R>>;
+/// Initialised winit, glutin & gfx state.
+pub type Init<Color, Depth> = InitState<RenderTargetView<R, Color>, DepthStencilView<R, Depth>>;
+
+impl RawInit {
+    fn into_typed<Color: RenderFormat, Depth: DepthFormat>(self) -> Init<Color, Depth> {
+        Init {
+            window: self.window,
+            gl_config: self.gl_config,
+            gl_surface: self.gl_surface,
+            gl_context: self.gl_context,
+            device: self.device,
+            factory: self.factory,
+            color_view: Typed::new(self.color_view),
+            depth_view: Typed::new(self.depth_view),
+        }
+    }
+}
+
+/// Recreate and replace gfx views if the dimensions have changed.
+pub fn resize_views<Color: RenderFormat, Depth: DepthFormat>(
+    new_size: winit::dpi::PhysicalSize<u32>,
+    color_view: &mut RenderTargetView<R, Color>,
+    depth_view: &mut DepthStencilView<R, Depth>,
+) {
+    if let Some((cv, dv)) = resized_views(new_size, color_view, depth_view) {
+        *color_view = cv;
+        *depth_view = dv;
+    }
+}
+
+/// Return new gfx views if the dimensions have changed.
+#[must_use]
+pub fn resized_views<Color: RenderFormat, Depth: DepthFormat>(
+    new_size: winit::dpi::PhysicalSize<u32>,
+    color_view: &RenderTargetView<R, Color>,
+    depth_view: &DepthStencilView<R, Depth>,
+) -> Option<(RenderTargetView<R, Color>, DepthStencilView<R, Depth>)> {
+    let old_dimensions = color_view.get_dimensions();
+    debug_assert_eq!(old_dimensions, depth_view.get_dimensions());
+
+    let (cv, dv) = resized_views_raw(
+        new_size,
+        old_dimensions,
+        Color::get_format(),
+        Depth::get_format(),
+    )?;
+
+    Some((Typed::new(cv), Typed::new(dv)))
+}
+
+/// Return new gfx views if the dimensions have changed.
+#[must_use]
+pub fn resized_views_raw(
+    new_size: winit::dpi::PhysicalSize<u32>,
+    old_dimensions: texture::Dimensions,
+    color_fmt: Format,
+    ds_fmt: Format,
+) -> Option<(RawRenderTargetView<R>, RawDepthStencilView<R>)> {
+    let new_dimensions = (
+        new_size.width as _,
+        new_size.height as _,
+        old_dimensions.2,
+        old_dimensions.3,
     );
-    /// Return new main target views if the window resolution has changed from the old dimensions.
-    fn updated_views_raw(
-        &self,
-        old_dimensions: texture::Dimensions,
-        color_format: Format,
-        ds_format: Format,
-    ) -> Option<(RawRenderTargetView<R>, RawDepthStencilView<R>)>;
-}
-
-impl WindowUpdateExt for glutin::WindowedContext<PossiblyCurrent> {
-    fn update_gfx<Color: RenderFormat, Depth: DepthFormat>(
-        &self,
-        color_view: &mut RenderTargetView<R, Color>,
-        ds_view: &mut DepthStencilView<R, Depth>,
-    ) {
-        let dim = color_view.get_dimensions();
-        debug_assert_eq!(dim, ds_view.get_dimensions());
-        if let Some((cv, dv)) =
-            self.updated_views_raw(dim, Color::get_format(), Depth::get_format())
-        {
-            *color_view = Typed::new(cv);
-            *ds_view = Typed::new(dv);
-        }
+    if old_dimensions == new_dimensions {
+        return None;
     }
-
-    fn updated_views_raw(
-        &self,
-        old_dimensions: texture::Dimensions,
-        color_format: Format,
-        ds_format: Format,
-    ) -> Option<(RawRenderTargetView<R>, RawDepthStencilView<R>)> {
-        let dim = get_window_dimensions(self);
-        if dim != old_dimensions {
-            Some(gfx_device_gl::create_main_targets_raw(
-                dim,
-                color_format.0,
-                ds_format.0,
-            ))
-        } else {
-            None
-        }
-    }
-}
-
-fn get_window_dimensions(ctx: &glutin::WindowedContext<PossiblyCurrent>) -> texture::Dimensions {
-    let window = ctx.window();
-    let (width, height) = {
-        let size = window.inner_size();
-        (size.width as _, size.height as _)
-    };
-    let aa = ctx.get_pixel_format().multisampling.unwrap_or(0) as texture::NumSamples;
-
-    (width, height, 1, aa.into())
+    Some(gfx_device_gl::create_main_targets_raw(
+        new_dimensions,
+        color_fmt.0,
+        ds_fmt.0,
+    ))
 }
