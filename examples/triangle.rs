@@ -62,11 +62,12 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         mut depth_view,
         ..
     } = old_school_gfx_glutin_ext::window_builder(
+        &events,
         WindowBuilder::new()
             .with_title("Triangle")
             .with_inner_size(winit::dpi::PhysicalSize::new(1024, 768)),
     )
-    .build::<ColorFormat, DepthFormat>(&events)?;
+    .build::<ColorFormat, DepthFormat>()?;
 
     let mut encoder = gfx::Encoder::from(factory.create_command_buffer());
 

@@ -3,24 +3,34 @@ old_school_gfx_glutin_ext
 [![Documentation](https://docs.rs/old_school_gfx_glutin_ext/badge.svg)](https://docs.rs/old_school_gfx_glutin_ext)
 =========================
 
-Extensions for [glutin](https://crates.io/crates/glutin) to initialize & update old school
-[gfx](https://crates.io/crates/gfx). _An alternative to gfx_window_glutin_.
+Initialise & update old school [gfx](https://crates.io/crates/gfx) with [glutin](https://crates.io/crates/glutin) + [winit](https://crates.io/crates/winit).
 
 ```rust
-use old_school_gfx_glutin_ext::*;
-
 type ColorFormat = gfx::format::Srgba8;
 type DepthFormat = gfx::format::DepthStencil;
 
-// Initialize
-let (window_ctx, mut device, mut factory, mut main_color, mut main_depth) =
-    glutin::ContextBuilder::new()
-        .with_gfx_color_depth::<ColorFormat, DepthFormat>()
-        .build_windowed(window_config, &event_loop)?
-        .init_gfx::<ColorFormat, DepthFormat>();
+let event_loop = winit::event_loop::EventLoop::new();
+let window_builder = winit::window::WindowBuilder::new();
 
-// Update, ie after a resize
-window_ctx.update_gfx(&mut main_color, &mut main_depth);
+// Initialise winit window, glutin context & gfx views
+let old_school_gfx_glutin_ext::Init {
+    // winit window
+    window,
+    // glutin bits
+    gl_config,
+    gl_surface,
+    gl_context,
+    // gfx bits
+    mut device,
+    mut factory,
+    mut color_view,
+    mut depth_view,
+    ..
+} = old_school_gfx_glutin_ext::window_builder(&event_loop, window_builder)
+    .build::<ColorFormat, DepthFormat>()?;
+
+// Update gfx views, e.g. after a window resize
+old_school_gfx_glutin_ext::resize_views(new_size, &mut color_view, &mut depth_view);
 ```
 
 ## Example

@@ -7,20 +7,25 @@
 //! type DepthFormat = gfx::format::DepthStencil;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! # let event_loop = winit::event_loop::EventLoop::new();
+//! let event_loop = winit::event_loop::EventLoop::new();
+//! let window_builder = winit::window::WindowBuilder::new();
+//!
 //! // Initialise winit window, glutin context & gfx views
 //! let old_school_gfx_glutin_ext::Init {
+//!     // winit window
 //!     window,
+//!     // glutin bits
 //!     gl_config,
 //!     gl_surface,
 //!     gl_context,
+//!     // gfx bits
 //!     mut device,
 //!     mut factory,
 //!     mut color_view,
 //!     mut depth_view,
 //!     ..
-//! } = old_school_gfx_glutin_ext::window_builder(winit::window::WindowBuilder::new())
-//!     .build::<ColorFormat, DepthFormat>(&event_loop)?;
+//! } = old_school_gfx_glutin_ext::window_builder(&event_loop, window_builder)
+//!     .build::<ColorFormat, DepthFormat>()?;
 //!
 //! # let new_size = winit::dpi::PhysicalSize::new(1, 1);
 //! // Update gfx views, e.g. after a window resize
@@ -49,8 +54,12 @@ use raw_window_handle::HasRawWindowHandle;
 use std::{error::Error, ffi::CString};
 
 /// Returns a builder for initialising a winit window, glutin context & gfx views.
-pub fn window_builder(winit: winit::window::WindowBuilder) -> Builder {
+pub fn window_builder<T: 'static>(
+    event_loop: &winit::event_loop::EventLoop<T>,
+    winit: winit::window::WindowBuilder,
+) -> Builder<'_, T> {
     Builder {
+        event_loop,
         winit,
         surface_attrs: <_>::default(),
         ctx_attrs: <_>::default(),
@@ -59,13 +68,14 @@ pub fn window_builder(winit: winit::window::WindowBuilder) -> Builder {
 
 /// Builder for initialising a winit window, glutin context & gfx views.
 #[derive(Debug, Clone)]
-pub struct Builder {
+pub struct Builder<'a, T: 'static> {
+    event_loop: &'a winit::event_loop::EventLoop<T>,
     winit: winit::window::WindowBuilder,
     surface_attrs: Option<SurfaceAttributesBuilder<WindowSurface>>,
     ctx_attrs: ContextAttributesBuilder,
 }
 
-impl Builder {
+impl<T> Builder<'_, T> {
     /// Configure surface attributes.
     ///
     /// If not called glutin default settings are used.
@@ -86,21 +96,22 @@ impl Builder {
     }
 
     /// Initialise a winit window, glutin context & gfx views.
-    pub fn build<Color: RenderFormat, Depth: DepthFormat>(
-        self,
-        events: &winit::event_loop::EventLoop<()>,
-    ) -> Result<Init<Color, Depth>, Box<dyn Error>> {
-        self.build_raw(events, Color::get_format(), Depth::get_format())
+    pub fn build<Color, Depth>(self) -> Result<Init<Color, Depth>, Box<dyn Error>>
+    where
+        Color: RenderFormat,
+        Depth: DepthFormat,
+    {
+        self.build_raw(Color::get_format(), Depth::get_format())
             .map(|i| i.into_typed())
     }
 
     /// Initialise a winit window, glutin context & gfx views.
     pub fn build_raw(
         self,
-        events: &winit::event_loop::EventLoop<()>,
-        Format(color_surface, color_channel): Format,
+        color_format: Format,
         depth_format: Format,
     ) -> Result<RawInit, Box<dyn Error>> {
+        let Format(color_surface, color_channel) = color_format;
         let color_total_bits = color_surface.get_total_bits();
         let alpha_bits = color_surface.get_alpha_stencil_bits();
         let depth_total_bits = depth_format.0.get_total_bits();
@@ -112,7 +123,7 @@ impl Builder {
 
         let (window, gl_config) = glutin_winit::DisplayBuilder::new()
             .with_window_builder(Some(self.winit))
-            .build(events, <_>::default(), |configs| {
+            .build(self.event_loop, <_>::default(), |configs| {
                 configs
                     .filter(|c| {
                         let color_bits = match c.color_buffer_type() {
