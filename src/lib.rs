@@ -121,11 +121,17 @@ impl<T> Builder<'_, T> {
             .surface_attrs
             .unwrap_or_else(|| SurfaceAttributesBuilder::new().with_srgb(srgb.then_some(true)));
 
+        let mut no_suitable_config = false;
         let (window, gl_config) = glutin_winit::DisplayBuilder::new()
             .with_window_builder(Some(self.winit))
             .build(self.event_loop, <_>::default(), |configs| {
-                configs
-                    .filter(|c| {
+                let mut configs: Vec<_> = configs.collect();
+                assert!(!configs.is_empty(), "no gl configs?");
+
+                let best = configs
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, c)| {
                         let color_bits = match c.color_buffer_type() {
                             None => 0,
                             Some(ColorBufferType::Luminance(s)) => s,
@@ -142,9 +148,20 @@ impl<T> Builder<'_, T> {
                             && c.depth_size() == depth_total_bits - stencil_bits
                             && c.stencil_size() == stencil_bits
                     })
-                    .max_by_key(|c| c.num_samples())
-                    .unwrap()
+                    .max_by_key(|(_, c)| c.num_samples());
+                match best {
+                    Some((idx, _)) => configs.swap_remove(idx),
+                    None => {
+                        no_suitable_config = true;
+                        configs.swap_remove(0)
+                    }
+                }
             })?;
+
+        if no_suitable_config {
+            return Err("no suitable gl config found, color+depth not supported?".into());
+        }
+
         let window = window.unwrap(); // set in display builder
         let raw_window_handle = window.raw_window_handle();
         let gl_display = gl_config.display();
