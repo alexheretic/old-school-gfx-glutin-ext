@@ -1,17 +1,19 @@
 //! Usage example of drawing a triangle.
 //!
-//! This library is the `with_gfx_color_depth`, `init_gfx`, `update_gfx` bits.
+//! Look for `old_school_gfx_glutin_ext` to see what this crate is doing:
+//! * Initialise window & gfx.
+//! * Resize gfx views.
 #[macro_use]
 extern crate gfx;
 
 use gfx::{traits::FactoryExt, Device};
-use glutin::{
+use glutin::surface::GlSurface;
+use std::{error::Error, num::NonZeroU32};
+use winit::{
     event::{Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-use old_school_gfx_glutin_ext::*;
-use std::error::Error;
 
 type ColorFormat = gfx::format::Srgba8;
 type DepthFormat = gfx::format::DepthStencil;
@@ -47,17 +49,25 @@ const TRIANGLE: [Vertex; 3] = [
 const CLEAR_COLOR: [f32; 4] = [0.1, 0.11, 0.12, 1.0];
 
 pub fn main() -> Result<(), Box<dyn Error>> {
-    let event_loop = EventLoop::new();
-    let window_config = WindowBuilder::new()
-        .with_title("Triangle".to_string())
-        .with_inner_size(glutin::dpi::PhysicalSize::new(1024, 768));
+    let events = EventLoop::new();
 
-    // vvvvvvvvvvv      Initialize gfx      vvvvvvvvvvv
-    let (window_ctx, mut device, mut factory, main_color, mut main_depth) =
-        glutin::ContextBuilder::new()
-            .with_gfx_color_depth::<ColorFormat, DepthFormat>()
-            .build_windowed(window_config, &event_loop)?
-            .init_gfx::<ColorFormat, DepthFormat>();
+    // Initialise winit window, glutin context & gfx views
+    let old_school_gfx_glutin_ext::Init {
+        window,
+        gl_surface,
+        gl_context,
+        mut device,
+        mut factory,
+        color_view,
+        mut depth_view,
+        ..
+    } = old_school_gfx_glutin_ext::window_builder(
+        &events,
+        WindowBuilder::new()
+            .with_title("Triangle")
+            .with_inner_size(winit::dpi::PhysicalSize::new(1024, 768)),
+    )
+    .build::<ColorFormat, DepthFormat>()?;
 
     let mut encoder = gfx::Encoder::from(factory.create_command_buffer());
 
@@ -70,20 +80,16 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     let (vertex_buffer, slice) = factory.create_vertex_buffer_with_slice(&TRIANGLE, ());
     let mut data = pipe::Data {
         vbuf: vertex_buffer,
-        out: main_color,
+        out: color_view,
     };
+    let mut dimensions = window.inner_size();
 
-    event_loop.run(move |event, _, control_flow| {
+    events.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
 
         match event {
-            Event::MainEventsCleared => window_ctx.window().request_redraw(),
+            Event::MainEventsCleared => window.request_redraw(),
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::Resized(physical) => {
-                    window_ctx.resize(physical);
-                    // vvvvvvvvvvv    Update gfx views      vvvvvvvvvvv
-                    window_ctx.update_gfx(&mut data.out, &mut main_depth);
-                }
                 WindowEvent::CloseRequested
                 | WindowEvent::KeyboardInput {
                     input:
@@ -96,11 +102,28 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                 _ => (),
             },
             Event::RedrawRequested(_) => {
+                // handle resizes
+                let window_size = window.inner_size();
+                if dimensions != window_size {
+                    if let (Some(w), Some(h)) = (
+                        NonZeroU32::new(window_size.width),
+                        NonZeroU32::new(window_size.height),
+                    ) {
+                        gl_surface.resize(&gl_context, w, h);
+                        old_school_gfx_glutin_ext::resize_views(
+                            window_size,
+                            &mut data.out,
+                            &mut depth_view,
+                        );
+                    }
+                    dimensions = window_size;
+                }
+
                 // draw a frame
                 encoder.clear(&data.out, CLEAR_COLOR);
                 encoder.draw(&slice, &pso, &data);
                 encoder.flush(&mut device);
-                window_ctx.swap_buffers().unwrap();
+                gl_surface.swap_buffers(&gl_context).unwrap();
                 device.cleanup();
             }
             _ => (),
