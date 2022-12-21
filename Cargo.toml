@@ -17,11 +17,10 @@ glutin-winit = { version = "0.2.1", default-features = false }
 raw-window-handle = "0.5"
 winit = { version = "0.27", default-features = false }
 
-[package.metadata.docs.rs]
-features = ["glutin-winit/default"]
-
 [dev-dependencies]
 gfx = "0.18"
 # enable default features for examples
 winit = { version = "0.27", default-features = true }
-glutin-winit = { version = "0.2.1", default-features = true }
+
+[features]
+default = ["glutin-winit/default"]
