@@ -44,7 +44,7 @@ use gfx_core::{
 };
 use gfx_device_gl::Resources as R;
 use glutin::{
-    config::ColorBufferType,
+    config::{ColorBufferType, ConfigTemplateBuilder},
     context::ContextAttributesBuilder,
     display::GetGlDisplay,
     prelude::{GlConfig, GlDisplay, NotCurrentGlContextSurfaceAccessor},
@@ -63,6 +63,7 @@ pub fn window_builder<T: 'static>(
         winit,
         surface_attrs: <_>::default(),
         ctx_attrs: <_>::default(),
+        config_attrs: <_>::default(),
     }
 }
 
@@ -73,6 +74,7 @@ pub struct Builder<'a, T: 'static> {
     winit: winit::window::WindowBuilder,
     surface_attrs: Option<SurfaceAttributesBuilder<WindowSurface>>,
     ctx_attrs: ContextAttributesBuilder,
+    config_attrs: ConfigTemplateBuilder,
 }
 
 impl<T> Builder<'_, T> {
@@ -92,6 +94,12 @@ impl<T> Builder<'_, T> {
     /// If not called glutin default settings are used.
     pub fn context_attributes(mut self, ctx_attrs: ContextAttributesBuilder) -> Self {
         self.ctx_attrs = ctx_attrs;
+        self
+    }
+
+    /// Configure [`ConfigTemplateBuilder`].
+    pub fn config_template(mut self, conf: ConfigTemplateBuilder) -> Self {
+        self.config_attrs = conf;
         self
     }
 
@@ -121,10 +129,16 @@ impl<T> Builder<'_, T> {
             .surface_attrs
             .unwrap_or_else(|| SurfaceAttributesBuilder::new().with_srgb(srgb.then_some(true)));
 
+        let config_attrs = self
+            .config_attrs
+            .with_alpha_size(alpha_bits)
+            .with_depth_size(depth_total_bits - stencil_bits)
+            .with_stencil_size(stencil_bits);
+
         let mut no_suitable_config = false;
         let (window, gl_config) = glutin_winit::DisplayBuilder::new()
             .with_window_builder(Some(self.winit))
-            .build(self.event_loop, <_>::default(), |configs| {
+            .build(self.event_loop, config_attrs, |configs| {
                 let mut configs: Vec<_> = configs.collect();
                 assert!(!configs.is_empty(), "no gl configs?");
 
