@@ -64,6 +64,7 @@ pub fn window_builder<T: 'static>(
         surface_attrs: <_>::default(),
         ctx_attrs: <_>::default(),
         config_attrs: <_>::default(),
+        sample_number_pref: <_>::default(),
     }
 }
 
@@ -75,6 +76,7 @@ pub struct Builder<'a, T: 'static> {
     surface_attrs: Option<SurfaceAttributesBuilder<WindowSurface>>,
     ctx_attrs: ContextAttributesBuilder,
     config_attrs: ConfigTemplateBuilder,
+    sample_number_pref: NumberOfSamples,
 }
 
 impl<T> Builder<'_, T> {
@@ -100,6 +102,14 @@ impl<T> Builder<'_, T> {
     /// Configure [`ConfigTemplateBuilder`].
     pub fn config_template(mut self, conf: ConfigTemplateBuilder) -> Self {
         self.config_attrs = conf;
+        self
+    }
+
+    /// Configure [`NumberOfSamples`] preference.
+    /// 
+    /// Default `0` / no samples.
+    pub fn number_of_samples(mut self, pref: impl Into<NumberOfSamples>) -> Self {
+        self.sample_number_pref = pref.into();
         self
     }
 
@@ -142,10 +152,9 @@ impl<T> Builder<'_, T> {
                 let mut configs: Vec<_> = configs.collect();
                 assert!(!configs.is_empty(), "no gl configs?");
 
-                let best = configs
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, c)| {
+                let best = self
+                    .sample_number_pref
+                    .find(configs.iter().enumerate().filter(|(_, c)| {
                         let color_bits = match c.color_buffer_type() {
                             None => 0,
                             Some(ColorBufferType::Luminance(s)) => s,
@@ -161,8 +170,7 @@ impl<T> Builder<'_, T> {
                             && c.alpha_size() == alpha_bits
                             && c.depth_size() == depth_total_bits - stencil_bits
                             && c.stencil_size() == stencil_bits
-                    })
-                    .max_by_key(|(_, c)| c.num_samples());
+                    }));
                 match best {
                     Some((idx, _)) => configs.swap_remove(idx),
                     None => {
@@ -305,4 +313,39 @@ pub fn resized_views_raw(
         color_fmt.0,
         ds_fmt.0,
     ))
+}
+
+/// Preference for picking [`glutin::config::GlConfig::num_samples`].
+#[derive(Debug, Clone, Copy)]
+pub enum NumberOfSamples {
+    /// Pick a config with the highest number of samples.
+    Max,
+    /// Pick a config with a specific number of samples.
+    /// 
+    /// E.g. `Specific(0)` mean no multisamples.
+    Specific(u8),
+}
+
+impl Default for NumberOfSamples {
+    fn default() -> Self {
+        Self::Specific(0)
+    }
+}
+
+impl From<u8> for NumberOfSamples {
+    fn from(val: u8) -> Self {
+        Self::Specific(val)
+    }
+}
+
+impl NumberOfSamples {
+    fn find<'a>(
+        self,
+        mut configs: impl Iterator<Item = (usize, &'a glutin::config::Config)>,
+    ) -> Option<(usize, &'a glutin::config::Config)> {
+        match self {
+            Self::Max => configs.max_by_key(|(_, c)| c.num_samples()),
+            Self::Specific(n) => configs.find(|(_, c)| c.num_samples() == n),
+        }
+    }
 }
