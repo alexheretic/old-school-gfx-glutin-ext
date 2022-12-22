@@ -1,4 +1,4 @@
-# Unreleased (v0.30.0)
+# v0.30.0
 * Reworked API to support _glutin_ `0.30`. See new docs & examples.
 * Crate version will no longer follow _glutin_ as now _winit_ releases may separately cause breaking changes.
 
