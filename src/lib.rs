@@ -106,7 +106,7 @@ impl<T> Builder<'_, T> {
     }
 
     /// Configure [`NumberOfSamples`] preference.
-    /// 
+    ///
     /// Default `0` / no samples.
     pub fn number_of_samples(mut self, pref: impl Into<NumberOfSamples>) -> Self {
         self.sample_number_pref = pref.into();
@@ -321,7 +321,7 @@ pub enum NumberOfSamples {
     /// Pick a config with the highest number of samples.
     Max,
     /// Pick a config with a specific number of samples.
-    /// 
+    ///
     /// E.g. `Specific(0)` mean no multisamples.
     Specific(u8),
 }

@@ -1,6 +1,6 @@
 [package]
 name = "old_school_gfx_glutin_ext"
-version = "0.30.0"
+version = "0.30.1"
 authors = ["Alex Butler <alexheretic@gmail.com>"]
 edition = "2021"
 description = "Extensions for glutin to initialize & update old school gfx"

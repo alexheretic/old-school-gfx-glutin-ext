@@ -1,4 +1,4 @@
-# Unreleased (v0.30.1)
+# v0.30.1
 * Add `Builder::number_of_samples` method to configure multisample buffer sample count preference. Default **0**.
 
 # v0.30.0
