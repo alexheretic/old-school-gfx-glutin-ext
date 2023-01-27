@@ -1,3 +1,6 @@
+# v0.30.2
+* Update _glutin-winit_ & reduce code.
+
 # v0.30.1
 * Add `Builder::number_of_samples` method to configure multisample buffer sample count preference. Default **0**.
 

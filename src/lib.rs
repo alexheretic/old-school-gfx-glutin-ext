@@ -32,10 +32,6 @@
 //! old_school_gfx_glutin_ext::resize_views(new_size, &mut color_view, &mut depth_view);
 //! # Ok(()) }
 //! ```
-
-mod glutin_winit2;
-
-use crate::glutin_winit2::GlWindow;
 use gfx_core::{
     format::{ChannelType, DepthFormat, Format, RenderFormat},
     handle::{DepthStencilView, RawDepthStencilView, RawRenderTargetView, RenderTargetView},
@@ -50,6 +46,7 @@ use glutin::{
     prelude::{GlConfig, GlDisplay, NotCurrentGlContextSurfaceAccessor},
     surface::{SurfaceAttributesBuilder, WindowSurface},
 };
+use glutin_winit::GlWindow;
 use raw_window_handle::HasRawWindowHandle;
 use std::{error::Error, ffi::CString};
 
