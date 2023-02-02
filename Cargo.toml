@@ -15,12 +15,16 @@ gfx_device_gl = "0.16.2"
 glutin = { version = "0.30.3", default-features = false }
 glutin-winit = { version = "0.2.2", default-features = false }
 raw-window-handle = "0.5"
-winit = { version = "0.27", default-features = false }
+winit = { version = "0.28", default-features = false }
 
 [dev-dependencies]
 gfx = "0.18"
 # enable default features for examples
-winit = { version = "0.27", default-features = true }
+winit = { version = "0.28", default-features = true }
 
 [features]
 default = ["glutin-winit/default"]
+
+[patch.crates-io]
+glutin-winit = { git = "https://github.com/alexheretic/glutin", branch = "winit++" }
+glutin = { git = "https://github.com/alexheretic/glutin", branch = "winit++" }
