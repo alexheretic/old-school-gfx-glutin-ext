@@ -19,6 +19,7 @@ type ColorFormat = gfx::format::Srgba8;
 type DepthFormat = gfx::format::DepthStencil;
 
 gfx_defines! {
+    #[repr(C)]
     vertex Vertex {
         pos: [f32; 2] = "pos",
         color: [f32; 3] = "color",
