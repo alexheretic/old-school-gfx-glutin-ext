@@ -7,7 +7,7 @@
 //! type DepthFormat = gfx::format::DepthStencil;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let event_loop = winit::event_loop::EventLoop::new();
+//! let event_loop = winit::event_loop::EventLoop::new()?;
 //! let window_builder = winit::window::WindowBuilder::new();
 //!
 //! // Initialise winit window, glutin context & gfx views
@@ -43,7 +43,7 @@ use glutin::{
     config::{ColorBufferType, ConfigTemplateBuilder},
     context::ContextAttributesBuilder,
     display::GetGlDisplay,
-    prelude::{GlConfig, GlDisplay, NotCurrentGlContextSurfaceAccessor},
+    prelude::{GlConfig, GlDisplay, NotCurrentGlContext},
     surface::{SurfaceAttributesBuilder, WindowSurface},
 };
 use glutin_winit::GlWindow;

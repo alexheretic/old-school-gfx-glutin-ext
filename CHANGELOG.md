@@ -1,3 +1,6 @@
+# Unreleased (v0.32.0)
+* Update _winit_ to `0.29`, _glutin-winit_ to `0.4`, _glutin_ to `0.31`.
+
 # v0.31.0
 * Update _winit_ to `0.28`, _glutin-winit_ to `0.3`.
 

@@ -10,8 +10,9 @@ use gfx::{traits::FactoryExt, Device};
 use glutin::surface::GlSurface;
 use std::{error::Error, num::NonZeroU32};
 use winit::{
-    event::{Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
+    keyboard::{Key, NamedKey},
     window::WindowBuilder,
 };
 
@@ -19,7 +20,6 @@ type ColorFormat = gfx::format::Srgba8;
 type DepthFormat = gfx::format::DepthStencil;
 
 gfx_defines! {
-    #[repr(C)]
     vertex Vertex {
         pos: [f32; 2] = "pos",
         color: [f32; 3] = "color",
@@ -50,7 +50,8 @@ const TRIANGLE: [Vertex; 3] = [
 const CLEAR_COLOR: [f32; 4] = [0.1, 0.11, 0.12, 1.0];
 
 pub fn main() -> Result<(), Box<dyn Error>> {
-    let events = EventLoop::new();
+    let events = EventLoop::new()?;
+    events.set_control_flow(ControlFlow::Poll);
 
     // Initialise winit window, glutin context & gfx views
     let old_school_gfx_glutin_ext::Init {
@@ -85,49 +86,49 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     };
     let mut dimensions = window.inner_size();
 
-    events.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Poll;
-
+    events.run(move |event, elwt| {
         match event {
-            Event::MainEventsCleared => window.request_redraw(),
+            Event::AboutToWait => window.request_redraw(),
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested
                 | WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
+                    event:
+                        KeyEvent {
+                            logical_key: Key::Named(NamedKey::Escape),
                             ..
                         },
                     ..
-                } => *control_flow = ControlFlow::Exit,
+                } => elwt.exit(),
+                WindowEvent::RedrawRequested => {
+                    // handle resizes
+                    let window_size = window.inner_size();
+                    if dimensions != window_size {
+                        if let (Some(w), Some(h)) = (
+                            NonZeroU32::new(window_size.width),
+                            NonZeroU32::new(window_size.height),
+                        ) {
+                            gl_surface.resize(&gl_context, w, h);
+                            old_school_gfx_glutin_ext::resize_views(
+                                window_size,
+                                &mut data.out,
+                                &mut depth_view,
+                            );
+                        }
+                        dimensions = window_size;
+                    }
+
+                    // draw a frame
+                    encoder.clear(&data.out, CLEAR_COLOR);
+                    encoder.draw(&slice, &pso, &data);
+                    encoder.flush(&mut device);
+                    gl_surface.swap_buffers(&gl_context).unwrap();
+                    device.cleanup();
+                }
                 _ => (),
             },
-            Event::RedrawRequested(_) => {
-                // handle resizes
-                let window_size = window.inner_size();
-                if dimensions != window_size {
-                    if let (Some(w), Some(h)) = (
-                        NonZeroU32::new(window_size.width),
-                        NonZeroU32::new(window_size.height),
-                    ) {
-                        gl_surface.resize(&gl_context, w, h);
-                        old_school_gfx_glutin_ext::resize_views(
-                            window_size,
-                            &mut data.out,
-                            &mut depth_view,
-                        );
-                    }
-                    dimensions = window_size;
-                }
-
-                // draw a frame
-                encoder.clear(&data.out, CLEAR_COLOR);
-                encoder.draw(&slice, &pso, &data);
-                encoder.flush(&mut device);
-                gl_surface.swap_buffers(&gl_context).unwrap();
-                device.cleanup();
-            }
             _ => (),
         }
-    });
+    })?;
+
+    Ok(())
 }
