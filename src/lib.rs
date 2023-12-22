@@ -165,7 +165,8 @@ impl<T> Builder<'_, T> {
                         (!srgb || c.srgb_capable())
                             && color_bits == color_total_bits - alpha_bits
                             && c.alpha_size() == alpha_bits
-                            && c.depth_size() == depth_total_bits - stencil_bits
+                            && (c.depth_size() == depth_total_bits - stencil_bits
+                                || c.depth_size() == depth_total_bits)
                             && c.stencil_size() == stencil_bits
                     }));
                 match best {
