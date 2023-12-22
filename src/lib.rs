@@ -166,6 +166,7 @@ impl<T> Builder<'_, T> {
                             && color_bits == color_total_bits - alpha_bits
                             && c.alpha_size() == alpha_bits
                             && (c.depth_size() == depth_total_bits - stencil_bits
+                                // workaround to allow depth_size=32 & stencil_size=8 on macos software renderer
                                 || c.depth_size() == depth_total_bits)
                             && c.stencil_size() == stencil_bits
                     }));
