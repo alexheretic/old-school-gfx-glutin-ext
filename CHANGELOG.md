@@ -1,4 +1,4 @@
-# Unreleased
+# v0.32.1
 * Allow incorrect OS config depth_size = expected depth_size+stencil_size.
   This works around an issue with macos software rendering.
 
