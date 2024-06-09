@@ -1,3 +1,6 @@
+# v0.33.0
+* Update _winit_ to `0.30`, _glutin-winit_ to `0.5`, _glutin_ to `0.32`, _raw-window-handle_ to `0.6`.
+
 # v0.32.1
 * Allow incorrect OS config depth_size = expected depth_size+stencil_size.
   This works around an issue with macos software rendering.

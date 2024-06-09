@@ -8,7 +8,7 @@
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let event_loop = winit::event_loop::EventLoop::new()?;
-//! let window_builder = winit::window::WindowBuilder::new();
+//! let window_attrs = winit::window::Window::default_attributes();
 //!
 //! // Initialise winit window, glutin context & gfx views
 //! let old_school_gfx_glutin_ext::Init {
@@ -24,7 +24,7 @@
 //!     mut color_view,
 //!     mut depth_view,
 //!     ..
-//! } = old_school_gfx_glutin_ext::window_builder(&event_loop, window_builder)
+//! } = old_school_gfx_glutin_ext::window_builder(&event_loop, window_attrs)
 //!     .build::<ColorFormat, DepthFormat>()?;
 //!
 //! # let new_size = winit::dpi::PhysicalSize::new(1, 1);
@@ -47,13 +47,13 @@ use glutin::{
     surface::{SurfaceAttributesBuilder, WindowSurface},
 };
 use glutin_winit::GlWindow;
-use raw_window_handle::HasRawWindowHandle;
+use raw_window_handle::HasWindowHandle;
 use std::{error::Error, ffi::CString};
 
 /// Returns a builder for initialising a winit window, glutin context & gfx views.
 pub fn window_builder<T: 'static>(
     event_loop: &winit::event_loop::EventLoop<T>,
-    winit: winit::window::WindowBuilder,
+    winit: winit::window::WindowAttributes,
 ) -> Builder<'_, T> {
     Builder {
         event_loop,
@@ -69,7 +69,7 @@ pub fn window_builder<T: 'static>(
 #[derive(Debug, Clone)]
 pub struct Builder<'a, T: 'static> {
     event_loop: &'a winit::event_loop::EventLoop<T>,
-    winit: winit::window::WindowBuilder,
+    winit: winit::window::WindowAttributes,
     surface_attrs: Option<SurfaceAttributesBuilder<WindowSurface>>,
     ctx_attrs: ContextAttributesBuilder,
     config_attrs: ConfigTemplateBuilder,
@@ -144,7 +144,7 @@ impl<T> Builder<'_, T> {
 
         let mut no_suitable_config = false;
         let (window, gl_config) = glutin_winit::DisplayBuilder::new()
-            .with_window_builder(Some(self.winit))
+            .with_window_attributes(Some(self.winit))
             .build(self.event_loop, config_attrs, |configs| {
                 let mut configs: Vec<_> = configs.collect();
                 assert!(!configs.is_empty(), "no gl configs?");
@@ -184,12 +184,12 @@ impl<T> Builder<'_, T> {
         }
 
         let window = window.unwrap(); // set in display builder
-        let raw_window_handle = window.raw_window_handle();
+        let window_handle = window.window_handle()?;
         let gl_display = gl_config.display();
 
         let (gl_surface, gl_context) = {
-            let ctx_attrs = self.ctx_attrs.build(Some(raw_window_handle));
-            let surface_attrs = window.build_surface_attributes(surface_attrs);
+            let ctx_attrs = self.ctx_attrs.build(Some(window_handle.as_raw()));
+            let surface_attrs = window.build_surface_attributes(surface_attrs)?;
             let surface = unsafe { gl_display.create_window_surface(&gl_config, &surface_attrs)? };
             let context = unsafe { gl_display.create_context(&gl_config, &ctx_attrs)? }
                 .make_current(&surface)?;

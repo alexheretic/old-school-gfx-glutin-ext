@@ -13,7 +13,7 @@ use winit::{
     event::{Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::{Key, NamedKey},
-    window::WindowBuilder,
+    window::Window,
 };
 
 type ColorFormat = gfx::format::Srgba8;
@@ -65,7 +65,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         ..
     } = old_school_gfx_glutin_ext::window_builder(
         &events,
-        WindowBuilder::new()
+        Window::default_attributes()
             .with_title("Triangle")
             .with_inner_size(winit::dpi::PhysicalSize::new(1024, 768)),
     )
