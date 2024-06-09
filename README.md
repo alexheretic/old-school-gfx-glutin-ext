@@ -9,8 +9,8 @@ Initialise & update old school [gfx](https://crates.io/crates/gfx) with [glutin]
 type ColorFormat = gfx::format::Srgba8;
 type DepthFormat = gfx::format::DepthStencil;
 
-let event_loop = winit::event_loop::EventLoop::new();
-let window_builder = winit::window::WindowBuilder::new();
+let event_loop = winit::event_loop::EventLoop::new()?;
+let window_attrs = winit::window::Window::default_attributes();
 
 // Initialise winit window, glutin context & gfx views
 let old_school_gfx_glutin_ext::Init {
@@ -26,7 +26,7 @@ let old_school_gfx_glutin_ext::Init {
     mut color_view,
     mut depth_view,
     ..
-} = old_school_gfx_glutin_ext::window_builder(&event_loop, window_builder)
+} = old_school_gfx_glutin_ext::window_builder(&event_loop, window_attrs)
     .build::<ColorFormat, DepthFormat>()?;
 
 // Update gfx views, e.g. after a window resize
