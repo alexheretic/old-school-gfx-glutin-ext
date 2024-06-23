@@ -9,7 +9,6 @@ Initialise & update old school [gfx](https://crates.io/crates/gfx) with [glutin]
 type ColorFormat = gfx::format::Srgba8;
 type DepthFormat = gfx::format::DepthStencil;
 
-let event_loop = winit::event_loop::EventLoop::new()?;
 let window_attrs = winit::window::Window::default_attributes();
 
 // Initialise winit window, glutin context & gfx views
