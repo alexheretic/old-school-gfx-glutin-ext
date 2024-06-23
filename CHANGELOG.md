@@ -1,3 +1,7 @@
+# v0.34.0
+* Require `winit::event_loop::ActiveEventLoop` for window building supporting `winit::application::ApplicationHandler`.
+  Use previous version for building using `EventLoop`.
+
 # v0.33.0
 * Update _winit_ to `0.30`, _glutin-winit_ to `0.5`, _glutin_ to `0.32`, _raw-window-handle_ to `0.6`.
 

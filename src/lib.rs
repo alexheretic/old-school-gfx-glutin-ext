@@ -7,7 +7,7 @@
 //! type DepthFormat = gfx::format::DepthStencil;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! let event_loop = winit::event_loop::EventLoop::new()?;
+//! # let event_loop: winit::event_loop::ActiveEventLoop = unimplemented!();
 //! let window_attrs = winit::window::Window::default_attributes();
 //!
 //! // Initialise winit window, glutin context & gfx views
@@ -51,10 +51,10 @@ use raw_window_handle::HasWindowHandle;
 use std::{error::Error, ffi::CString};
 
 /// Returns a builder for initialising a winit window, glutin context & gfx views.
-pub fn window_builder<T: 'static>(
-    event_loop: &winit::event_loop::EventLoop<T>,
+pub fn window_builder(
+    event_loop: &winit::event_loop::ActiveEventLoop,
     winit: winit::window::WindowAttributes,
-) -> Builder<'_, T> {
+) -> Builder<'_> {
     Builder {
         event_loop,
         winit,
@@ -67,8 +67,8 @@ pub fn window_builder<T: 'static>(
 
 /// Builder for initialising a winit window, glutin context & gfx views.
 #[derive(Debug, Clone)]
-pub struct Builder<'a, T: 'static> {
-    event_loop: &'a winit::event_loop::EventLoop<T>,
+pub struct Builder<'a> {
+    event_loop: &'a winit::event_loop::ActiveEventLoop,
     winit: winit::window::WindowAttributes,
     surface_attrs: Option<SurfaceAttributesBuilder<WindowSurface>>,
     ctx_attrs: ContextAttributesBuilder,
@@ -76,7 +76,7 @@ pub struct Builder<'a, T: 'static> {
     sample_number_pref: NumberOfSamples,
 }
 
-impl<T> Builder<'_, T> {
+impl Builder<'_> {
     /// Configure surface attributes.
     ///
     /// If not called glutin default settings are used.
