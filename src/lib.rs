@@ -225,12 +225,12 @@ impl Builder<'_> {
 /// Initialised winit, glutin & gfx state.
 #[non_exhaustive]
 pub struct InitState<ColorView, DepthView> {
-    // winit
-    pub window: winit::window::Window,
     // glutin
     pub gl_config: glutin::config::Config,
     pub gl_surface: glutin::surface::Surface<WindowSurface>,
     pub gl_context: glutin::context::PossiblyCurrentContext,
+    // winit
+    pub window: winit::window::Window,
     // gfx
     pub device: gfx_device_gl::Device,
     pub factory: gfx_device_gl::Factory,
